@@ -41,7 +41,13 @@ export async function POST(req: Request) {
     return errorResponse("Não autorizado.", 401);
   }
 
-  const body = await req.json().catch(() => null);
+  let body: unknown;
+
+  try {
+    body = await req.json();
+  } catch {
+    return errorResponse("JSON inválido.", 400);
+  }
 
   const validation = validateCreateVehicle(body);
 

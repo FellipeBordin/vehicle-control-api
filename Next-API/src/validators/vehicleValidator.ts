@@ -41,23 +41,41 @@ function isValidPhone(phone: string): boolean {
   return /^\d{10,11}$/.test(phone);
 }
 
-export function validateCreateVehicle(
-  body: CreateVehicleBody | null,
-): ValidationResult {
-  const name = body?.name?.toString().trim();
-  const plate = body?.plate?.toString().trim().toUpperCase();
-  const purchasePrice = Number(body?.purchasePrice);
+export function validateCreateVehicle(body: unknown): ValidationResult {
+  if (typeof body !== "object" || body === null) {
+    return {
+      success: false,
+      error: "Dados inválidos.",
+    };
+  }
+
+  const data = body as CreateVehicleBody;
+
+  const name = typeof data.name === "string" ? data.name.trim() : "";
+
+  const plate =
+    typeof data.plate === "string" ? data.plate.trim().toUpperCase() : "";
+
+  const rawPurchasePrice = data.purchasePrice;
+
+  const purchasePrice =
+    typeof rawPurchasePrice === "number"
+      ? rawPurchasePrice
+      : typeof rawPurchasePrice === "string" && rawPurchasePrice.trim() !== ""
+        ? Number(rawPurchasePrice)
+        : NaN;
 
   const previousOwnerName =
-    body?.previousOwnerName == null || body.previousOwnerName === ""
-      ? null
-      : body.previousOwnerName.toString().trim();
+    typeof data.previousOwnerName === "string" &&
+    data.previousOwnerName.trim() !== ""
+      ? data.previousOwnerName.trim()
+      : null;
 
   const previousOwnerPhone =
-    body?.previousOwnerPhone == null || body.previousOwnerPhone === ""
-      ? null
-      : normalizePhone(body.previousOwnerPhone.toString());
-
+    typeof data.previousOwnerPhone === "string" &&
+    data.previousOwnerPhone.trim() !== ""
+      ? normalizePhone(data.previousOwnerPhone)
+      : null;
   if (!name) {
     return {
       success: false,
@@ -72,7 +90,7 @@ export function validateCreateVehicle(
     };
   }
 
-  if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
+  if (!Number.isFinite(purchasePrice) || purchasePrice <= 0) {
     return {
       success: false,
       error: "Preço de compra inválido.",
