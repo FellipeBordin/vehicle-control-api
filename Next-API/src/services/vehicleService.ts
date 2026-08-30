@@ -1,6 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { moneyToNumber } from "@/utils/money";
 
+type CreateVehicleData = {
+  name: string;
+  plate: string;
+  purchasePrice: number;
+  previousOwnerName: string | null;
+  previousOwnerPhone: string | null;
+  userId: string;
+};
+
 export async function getVehiclesByUserId(userId: string) {
   const vehicles = await prisma.vehicle.findMany({
     where: {
@@ -29,9 +38,7 @@ export async function getVehiclesByUserId(userId: string) {
     const totalInvested = purchasePrice + totalExpenses;
 
     const soldPrice =
-      vehicle.soldPrice === null
-        ? null
-        : moneyToNumber(vehicle.soldPrice);
+      vehicle.soldPrice === null ? null : moneyToNumber(vehicle.soldPrice);
 
     const profit =
       soldPrice === null
@@ -56,5 +63,22 @@ export async function getVehiclesByUserId(userId: string) {
       buyerPhone: vehicle.buyerPhone,
       createdAt: vehicle.createdAt,
     };
+  });
+}
+
+export async function createVehicle(data: CreateVehicleData) {
+  return prisma.vehicle.create({
+    data: {
+      name: data.name,
+      plate: data.plate,
+      purchasePrice: data.purchasePrice,
+      purchaseDate: new Date(),
+      previousOwnerName: data.previousOwnerName,
+      previousOwnerPhone: data.previousOwnerPhone,
+      userId: data.userId,
+    },
+    select: {
+      id: true,
+    },
   });
 }

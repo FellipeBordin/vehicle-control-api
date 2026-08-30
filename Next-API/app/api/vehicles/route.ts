@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { getAuthUser } from "@/lib/auth";
 import { corsHeaders } from "@/lib/cors";
-import { getVehiclesByUserId } from "@/services/vehicleService";
+import { errorResponse } from "@/lib/httpResponse";
 
-type CreateVehicleBody = {
-  name?: unknown;
-  plate?: unknown;
-  purchasePrice?: unknown;
-  previousOwnerName?: unknown;
-  previousOwnerPhone?: unknown;
-};
+import { createVehicle, getVehiclesByUserId } from "@/services/vehicleService";
+
+import { isUniqueConstraintError } from "@/utils/prismaError";
+import { validateCreateVehicle } from "@/validators/vehicleValidator";
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -23,85 +20,50 @@ export async function GET(req: Request) {
   const auth = getAuthUser(req);
 
   if (!auth) {
-    return NextResponse.json(
-      { error: "Não autorizado." },
-      { status: 401, headers: corsHeaders },
-    );
+    return errorResponse("Não autorizado.", 401);
   }
 
-  const vehicles = await getVehiclesByUserId(auth.userId);
+  try {
+    const vehicles = await getVehiclesByUserId(auth.userId);
 
-  return NextResponse.json(vehicles, {
-    headers: corsHeaders,
-  });
+    return NextResponse.json(vehicles, {
+      headers: corsHeaders,
+    });
+  } catch {
+    return errorResponse("Falha ao buscar veículos.", 500);
+  }
 }
 
 export async function POST(req: Request) {
   const auth = getAuthUser(req);
 
   if (!auth) {
-    return NextResponse.json(
-      { error: "Não autorizado." },
-      { status: 401, headers: corsHeaders },
-    );
+    return errorResponse("Não autorizado.", 401);
   }
 
-  const body = (await req.json().catch(() => null)) as CreateVehicleBody | null;
+  const body = await req.json().catch(() => null);
 
-  const name = body?.name?.toString().trim();
-  const plate = body?.plate?.toString().trim().toUpperCase();
-  const purchasePrice = Number(body?.purchasePrice);
+  const validation = validateCreateVehicle(body);
 
-  const previousOwnerName =
-    body?.previousOwnerName == null || body?.previousOwnerName === ""
-      ? null
-      : body.previousOwnerName.toString().trim();
-
-  const previousOwnerPhone =
-    body?.previousOwnerPhone == null || body?.previousOwnerPhone === ""
-      ? null
-      : body.previousOwnerPhone.toString().trim();
-
-  if (!name || !plate || !Number.isFinite(purchasePrice) || purchasePrice < 0) {
-    return NextResponse.json(
-      { error: "Dados inválidos. Envie name, plate e purchasePrice >= 0." },
-      { status: 400, headers: corsHeaders },
-    );
+  if (!validation.success) {
+    return errorResponse(validation.error, 400);
   }
 
   try {
-    const created = await prisma.vehicle.create({
-      data: {
-        name,
-        plate,
-        purchasePrice,
-        purchaseDate: new Date(),
-        previousOwnerName,
-        previousOwnerPhone,
-        userId: auth.userId,
-      },
-      select: {
-        id: true,
-      },
+    const created = await createVehicle({
+      ...validation.data,
+      userId: auth.userId,
     });
 
     return NextResponse.json(created, {
       status: 201,
       headers: corsHeaders,
     });
-  } catch (err: unknown) {
-    const error = err as { code?: string };
-
-    if (error.code === "P2002") {
-      return NextResponse.json(
-        { error: "Já existe um veículo com essa placa." },
-        { status: 409, headers: corsHeaders },
-      );
+  } catch (error: unknown) {
+    if (isUniqueConstraintError(error)) {
+      return errorResponse("Já existe um veículo com essa placa.", 409);
     }
 
-    return NextResponse.json(
-      { error: "Falha ao criar veículo." },
-      { status: 500, headers: corsHeaders },
-    );
+    return errorResponse("Falha ao criar veículo.", 500);
   }
 }
