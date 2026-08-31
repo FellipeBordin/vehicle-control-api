@@ -26,6 +26,32 @@ type ValidationError = {
 
 type ValidationResult = ValidationSuccess | ValidationError;
 
+type SellVehicleBody = {
+  soldPrice?: unknown;
+  buyerName?: unknown;
+  buyerPhone?: unknown;
+};
+
+type ValidSellVehicleData = {
+  soldPrice: number;
+  buyerName: string | null;
+  buyerPhone: string | null;
+};
+
+type SellValidationSuccess = {
+  success: true;
+  data: ValidSellVehicleData;
+};
+
+type SellValidationError = {
+  success: false;
+  error: string;
+};
+
+type SellValidationResult =
+  | SellValidationSuccess
+  | SellValidationError;
+
 function isValidPlate(plate: string): boolean {
   const oldPattern = /^[A-Z]{3}\d{4}$/;
   const mercosulPattern = /^[A-Z]{3}\d[A-Z]\d{2}$/;
@@ -112,6 +138,63 @@ export function validateCreateVehicle(body: unknown): ValidationResult {
       purchasePrice,
       previousOwnerName,
       previousOwnerPhone,
+    },
+  };
+}
+
+export function validateSellVehicle(
+  body: unknown,
+): SellValidationResult {
+  if (typeof body !== "object" || body === null) {
+    return {
+      success: false,
+      error: "Dados inválidos.",
+    };
+  }
+
+  const data = body as SellVehicleBody;
+
+  const rawSoldPrice = data.soldPrice;
+
+  const soldPrice =
+    typeof rawSoldPrice === "number"
+      ? rawSoldPrice
+      : typeof rawSoldPrice === "string" && rawSoldPrice.trim() !== ""
+        ? Number(rawSoldPrice)
+        : NaN;
+
+  const buyerName =
+    typeof data.buyerName === "string" &&
+    data.buyerName.trim() !== ""
+      ? data.buyerName.trim()
+      : null;
+
+  const buyerPhone =
+    typeof data.buyerPhone === "string" &&
+    data.buyerPhone.trim() !== ""
+      ? normalizePhone(data.buyerPhone)
+      : null;
+
+  if (!Number.isFinite(soldPrice) || soldPrice <= 0) {
+    return {
+      success: false,
+      error: "Preço de venda inválido.",
+    };
+  }
+
+  if (buyerPhone && !isValidPhone(buyerPhone)) {
+    return {
+      success: false,
+      error: "Telefone do comprador inválido.",
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      soldPrice,
+      buyerName,
+      buyerPhone,
     },
   };
 }
