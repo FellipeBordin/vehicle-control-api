@@ -1,70 +1,55 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
 
-function corsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "http://localhost:8081",
-    "Access-Control-Allow-Methods": "POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
-}
+import { corsHeaders } from "@/lib/cors";
+import { errorResponse } from "@/lib/httpResponse";
+
+import { resetUserPassword } from "@/services/authService";
+import { validateResetPassword } from "@/validators/authValidator";
 
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: corsHeaders(),
+    headers: corsHeaders,
   });
 }
 
 export async function POST(req: Request) {
+  let body: unknown;
+
   try {
-    const body = await req.json().catch(() => null);
+    body = await req.json();
+  } catch {
+    return errorResponse("JSON inválido.", 400);
+  }
 
-    const email = body?.email?.toString().trim().toLowerCase();
-    const newPassword = body?.newPassword?.toString();
+  const validation = validateResetPassword(body);
 
-    if (!email || !newPassword) {
-      return NextResponse.json(
-        { error: "Email e nova senha são obrigatórios." },
-        { status: 400, headers: corsHeaders() },
-      );
-    }
+  if (!validation.success) {
+    return errorResponse(validation.error, 400);
+  }
 
-    if (newPassword.length < 6) {
-      return NextResponse.json(
-        { error: "A senha deve ter pelo menos 6 caracteres." },
-        { status: 400, headers: corsHeaders() },
-      );
-    }
+  const { email, newPassword } = validation.data;
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true },
+  try {
+    const result = await resetUserPassword({
+      email,
+      newPassword,
     });
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Usuário não encontrado." },
-        { status: 404, headers: corsHeaders() },
-      );
+    if (!result.success) {
+      return errorResponse("Usuário não encontrado.", 404);
     }
-
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-
-    await prisma.user.update({
-      where: { email },
-      data: { passwordHash },
-    });
 
     return NextResponse.json(
-      { message: "Senha atualizada com sucesso." },
-      { headers: corsHeaders() },
+      {
+        message: "Senha resetada com sucesso.",
+      },
+      {
+        status: 200,
+        headers: corsHeaders,
+      },
     );
   } catch {
-    return NextResponse.json(
-      { error: "Erro ao resetar senha." },
-      { status: 500, headers: corsHeaders() },
-    );
+    return errorResponse("Falha ao resetar senha.", 500);
   }
 }
