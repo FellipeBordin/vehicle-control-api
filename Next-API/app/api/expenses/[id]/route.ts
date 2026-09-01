@@ -1,34 +1,21 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { getAuthUser } from "@/lib/auth";
+import { corsHeaders } from "@/lib/cors";
+import { errorResponse } from "@/lib/httpResponse";
 
-function corsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "http://localhost:8081",
-    "Access-Control-Allow-Methods": "GET,PUT,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  };
-}
+import {
+  deleteExpenseById,
+  getExpenseById,
+  updateExpense,
+} from "@/services/expenseService";
 
-function moneyToNumber(v: unknown): number {
-  if (typeof v === "number") return v;
-  if (typeof v === "string") return Number(v);
-
-  if (
-    typeof v === "object" &&
-    v !== null &&
-    typeof (v as { toNumber(): number }).toNumber === "function"
-  ) {
-    return (v as { toNumber(): number }).toNumber();
-  }
-
-  return Number(v);
-}
+import { validateUpdateExpense } from "@/validators/expenseValidator";
 
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: corsHeaders(),
+    headers: corsHeaders,
   });
 }
 
@@ -39,50 +26,23 @@ export async function GET(
   const auth = getAuthUser(req);
 
   if (!auth) {
-    return NextResponse.json(
-      { error: "Não autorizado." },
-      { status: 401, headers: corsHeaders() },
-    );
+    return errorResponse("Não autorizado.", 401);
   }
 
   const { id } = await context.params;
 
   try {
-    const expense = await prisma.expense.findFirst({
-      where: {
-        id,
-        vehicle: {
-          userId: auth.userId,
-        },
-      },
-      select: {
-        id: true,
-        vehicleId: true,
-        amount: true,
-        note: true,
-        createdAt: true,
-      },
-    });
+    const expense = await getExpenseById(id, auth.userId);
 
     if (!expense) {
-      return NextResponse.json(
-        { error: "Despesa não encontrada." },
-        { status: 404, headers: corsHeaders() },
-      );
+      return errorResponse("Despesa não encontrada.", 404);
     }
 
-    return NextResponse.json(
-      {
-        ...expense,
-        amount: moneyToNumber(expense.amount),
-      },
-      { headers: corsHeaders() },
-    );
+    return NextResponse.json(expense, {
+      headers: corsHeaders,
+    });
   } catch {
-    return NextResponse.json(
-      { error: "Falha ao buscar despesa." },
-      { status: 500, headers: corsHeaders() },
-    );
+    return errorResponse("Falha ao buscar despesa.", 500);
   }
 }
 
@@ -93,73 +53,41 @@ export async function PUT(
   const auth = getAuthUser(req);
 
   if (!auth) {
-    return NextResponse.json(
-      { error: "Não autorizado." },
-      { status: 401, headers: corsHeaders() },
-    );
+    return errorResponse("Não autorizado.", 401);
   }
 
   const { id } = await context.params;
-  const body = await req.json().catch(() => null);
 
-  const amount = Number(body?.amount);
-  const note =
-    body?.note == null || body?.note === ""
-      ? null
-      : body.note.toString().trim();
+  let body: unknown;
 
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return NextResponse.json(
-      { error: "Envie amount maior que 0." },
-      { status: 400, headers: corsHeaders() },
-    );
+  try {
+    body = await req.json();
+  } catch {
+    return errorResponse("JSON inválido.", 400);
+  }
+
+  const validation = validateUpdateExpense(body);
+
+  if (!validation.success) {
+    return errorResponse(validation.error, 400);
   }
 
   try {
-    const expense = await prisma.expense.findFirst({
-      where: {
-        id,
-        vehicle: {
-          userId: auth.userId,
-        },
-      },
-      select: { id: true },
+    const result = await updateExpense({
+      id,
+      userId: auth.userId,
+      ...validation.data,
     });
 
-    if (!expense) {
-      return NextResponse.json(
-        { error: "Despesa não encontrada." },
-        { status: 404, headers: corsHeaders() },
-      );
+    if (!result.success) {
+      return errorResponse("Despesa não encontrada.", 404);
     }
 
-    const updated = await prisma.expense.update({
-      where: { id },
-      data: {
-        amount,
-        note,
-      },
-      select: {
-        id: true,
-        vehicleId: true,
-        amount: true,
-        note: true,
-        createdAt: true,
-      },
+    return NextResponse.json(result.data, {
+      headers: corsHeaders,
     });
-
-    return NextResponse.json(
-      {
-        ...updated,
-        amount: moneyToNumber(updated.amount),
-      },
-      { headers: corsHeaders() },
-    );
   } catch {
-    return NextResponse.json(
-      { error: "Falha ao atualizar despesa." },
-      { status: 500, headers: corsHeaders() },
-    );
+    return errorResponse("Falha ao atualizar despesa.", 500);
   }
 }
 
@@ -170,41 +98,25 @@ export async function DELETE(
   const auth = getAuthUser(req);
 
   if (!auth) {
-    return NextResponse.json(
-      { error: "Não autorizado." },
-      { status: 401, headers: corsHeaders() },
-    );
+    return errorResponse("Não autorizado.", 401);
   }
 
   const { id } = await context.params;
 
   try {
-    const expense = await prisma.expense.findFirst({
-      where: {
-        id,
-        vehicle: {
-          userId: auth.userId,
-        },
-      },
-      select: { id: true },
-    });
+    const result = await deleteExpenseById(id, auth.userId);
 
-    if (!expense) {
-      return NextResponse.json(
-        { error: "Despesa não encontrada." },
-        { status: 404, headers: corsHeaders() },
-      );
+    if (!result.success) {
+      return errorResponse("Despesa não encontrada.", 404);
     }
 
-    await prisma.expense.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ success: true }, { headers: corsHeaders() });
-  } catch {
     return NextResponse.json(
-      { error: "Falha ao excluir despesa." },
-      { status: 500, headers: corsHeaders() },
+      { success: true },
+      {
+        headers: corsHeaders,
+      },
     );
+  } catch {
+    return errorResponse("Falha ao excluir despesa.", 500);
   }
 }
