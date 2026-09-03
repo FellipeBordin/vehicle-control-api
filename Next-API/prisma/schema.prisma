@@ -13,43 +13,42 @@ enum VehicleStatus {
 }
 
 model User {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   name         String
-  email        String    @unique
+  email        String   @unique
   passwordHash String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  vehicles     Vehicle[]
+  vehicles            Vehicle[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([email])
 }
 
 model Vehicle {
-  id                  String        @id @default(cuid())
-  name                String
-  plate               String        @unique
-  status              VehicleStatus @default(IN_STOCK)
+  id     String        @id @default(cuid())
+  name   String
+  plate  String        @unique
+  status VehicleStatus @default(IN_STOCK)
 
-  purchasePrice       Decimal
-  purchaseDate        DateTime?
+  purchasePrice      Decimal
+  purchaseDate       DateTime?
+  previousOwnerName  String?
+  previousOwnerPhone String?
 
-  previousOwnerName   String?
-  previousOwnerPhone  String?
+  soldPrice  Decimal?
+  soldDate   DateTime?
+  buyerName  String?
+  buyerPhone String?
 
-  soldPrice           Decimal?
-  soldDate            DateTime?
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  buyerName           String?
-  buyerPhone          String?
+  expenses Expense[]
 
-  userId              String?
-  user                User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  expenses            Expense[]
-
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([createdAt])
@@ -57,13 +56,26 @@ model Vehicle {
 }
 
 model Expense {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   vehicleId String
-  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
   amount    Decimal
   note      String?
   createdAt DateTime @default(now())
 
   @@index([vehicleId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

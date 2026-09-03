@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { corsHeaders } from "@/lib/cors";
 import { errorResponse } from "@/lib/httpResponse";
 
-import { resetPasswordWithToken } from "@/services/passwordResetService";
-import { validateResetPassword } from "@/validators/authValidator";
+import { getUserByEmail } from "@/services/authService";
+import { createPasswordResetToken } from "@/services/passwordResetService";
+import { validateForgotPassword } from "@/validators/authValidator";
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -22,28 +23,25 @@ export async function POST(req: Request) {
     return errorResponse("JSON inválido.", 400);
   }
 
-  const validation = validateResetPassword(body);
+  const validation = validateForgotPassword(body);
 
   if (!validation.success) {
     return errorResponse(validation.error, 400);
   }
 
-  const { token, newPassword } = validation.data;
+  const { email } = validation.data;
 
   try {
-    const result = await resetPasswordWithToken(token, newPassword);
+    const user = await getUserByEmail(email);
 
-    if (!result.success) {
-      if (result.reason === "EXPIRED_TOKEN") {
-        return errorResponse("Token de recuperação expirado.", 400);
-      }
-
-      return errorResponse("Token de recuperação inválido.", 400);
+    if (user) {
+      await createPasswordResetToken(user.id);
     }
 
     return NextResponse.json(
       {
-        message: "Senha redefinida com sucesso.",
+        message:
+          "Se existir uma conta com esse e-mail, enviaremos as instruções de recuperação.",
       },
       {
         status: 200,
@@ -51,6 +49,6 @@ export async function POST(req: Request) {
       },
     );
   } catch {
-    return errorResponse("Falha ao redefinir senha.", 500);
+    return errorResponse("Falha ao processar recuperação de senha.", 500);
   }
 }

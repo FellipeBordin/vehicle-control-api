@@ -47,12 +47,12 @@ type LoginValidationError = {
 type LoginValidationResult = LoginValidationSuccess | LoginValidationError;
 
 type ResetPasswordBody = {
-  email?: unknown;
+  token?: unknown;
   newPassword?: unknown;
 };
 
 type ValidResetPasswordData = {
-  email: string;
+  token: string;
   newPassword: string;
 };
 
@@ -69,6 +69,28 @@ type ResetPasswordValidationError = {
 type ResetPasswordValidationResult =
   | ResetPasswordValidationSuccess
   | ResetPasswordValidationError;
+
+type ForgotPasswordBody = {
+  email?: unknown;
+};
+
+type ValidForgotPasswordData = {
+  email: string;
+};
+
+type ForgotPasswordValidationSuccess = {
+  success: true;
+  data: ValidForgotPasswordData;
+};
+
+type ForgotPasswordValidationError = {
+  success: false;
+  error: string;
+};
+
+type ForgotPasswordValidationResult =
+  | ForgotPasswordValidationSuccess
+  | ForgotPasswordValidationError;
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -172,16 +194,15 @@ export function validateResetPassword(
 
   const data = body as ResetPasswordBody;
 
-  const email =
-    typeof data.email === "string" ? data.email.trim().toLowerCase() : "";
+  const token = typeof data.token === "string" ? data.token.trim() : "";
 
   const newPassword =
     typeof data.newPassword === "string" ? data.newPassword : "";
 
-  if (!email || !isValidEmail(email)) {
+  if (!token) {
     return {
       success: false,
-      error: "E-mail inválido.",
+      error: "Token de recuperação é obrigatório.",
     };
   }
 
@@ -195,8 +216,37 @@ export function validateResetPassword(
   return {
     success: true,
     data: {
-      email,
+      token,
       newPassword,
+    },
+  };
+}
+export function validateForgotPassword(
+  body: unknown,
+): ForgotPasswordValidationResult {
+  if (typeof body !== "object" || body === null) {
+    return {
+      success: false,
+      error: "Dados inválidos.",
+    };
+  }
+
+  const data = body as ForgotPasswordBody;
+
+  const email =
+    typeof data.email === "string" ? data.email.trim().toLowerCase() : "";
+
+  if (!email || !isValidEmail(email)) {
+    return {
+      success: false,
+      error: "E-mail inválido.",
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      email,
     },
   };
 }

@@ -32,3 +32,8 @@ export type Vehicle = Prisma.VehicleModel
  * 
  */
 export type Expense = Prisma.ExpenseModel
+/**
+ * Model PasswordResetToken
+ * 
+ */
+export type PasswordResetToken = Prisma.PasswordResetTokenModel

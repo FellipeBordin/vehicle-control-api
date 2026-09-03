@@ -11,4 +11,5 @@
 export type * from './models/User'
 export type * from './models/Vehicle'
 export type * from './models/Expense'
+export type * from './models/PasswordResetToken'
 export type * from './commonInputTypes'
